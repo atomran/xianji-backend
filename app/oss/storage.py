@@ -1,10 +1,17 @@
-"""照片存储 — 支持 local（本地文件）和 wxcos（微信云存储COS）双模式。"""
+"""照片存储 — 支持 local（本地文件）和 wxcos（微信云存储COS）双模式。
+
+微信云托管 COS 使用临时密钥（通过内部 API http://api.weixin.qq.com/_/cos/getauth 获取），
+不使用永久密钥（COS_SECRET_ID/COS_SECRET_KEY）。
+"""
 import os
 import uuid
+import time
+import json
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
-from ..config import STORAGE_MODE, LOCAL_STORAGE_DIR
+from ..config import STORAGE_MODE, LOCAL_STORAGE_DIR, COS_BUCKET, COS_REGION
 
 
 # ============================================================
@@ -61,31 +68,73 @@ def _local_delete(storage_key: str, preview_key: str = None):
 
 
 # ============================================================
-# 微信云存储 COS
+# 微信云存储 COS — 临时密钥模式
 # ============================================================
 
 _cos_client = None
+_cos_cred = None
+_cos_cred_expire = 0
+
+
+def _get_cos_credentials():
+    """从微信云托管内部 API 获取临时 COS 密钥。"""
+    global _cos_cred, _cos_cred_expire
+    # 缓存密钥，提前 5 分钟刷新
+    if _cos_cred and time.time() < _cos_cred_expire - 300:
+        return _cos_cred
+
+    url = 'http://api.weixin.qq.com/_/cos/getauth'
+    try:
+        req = urllib.request.Request(url, method='GET')
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        _cos_cred = data
+        _cos_cred_expire = data.get('ExpiredTime', int(time.time()) + 3600)
+        return _cos_cred
+    except Exception as e:
+        if _cos_cred:
+            # 使用旧密钥兜底
+            return _cos_cred
+        raise RuntimeError(f'获取 COS 临时密钥失败: {e}')
 
 
 def _get_cos_client():
-    """初始化腾讯云 COS 客户端（微信云托管环境）。"""
+    """初始化 COS 客户端（使用临时密钥）。每次检查密钥是否需要刷新。"""
     global _cos_client
-    if _cos_client is None:
+    cred = _get_cos_credentials()
+    # 如果密钥即将过期，重建客户端
+    if _cos_client is None or time.time() >= _cos_cred_expire - 300:
         from qcloud_cos import CosConfig, CosS3Client
-        from ..config import COS_SECRET_ID, COS_SECRET_KEY, COS_REGION, COS_BUCKET
         config = CosConfig(
-            SecretId=COS_SECRET_ID,
-            SecretKey=COS_SECRET_KEY,
+            SecretId=cred['TmpSecretId'],
+            SecretKey=cred['TmpSecretKey'],
             Region=COS_REGION,
             Bucket=COS_BUCKET,
+            SecurityToken=cred.get('Token', ''),
         )
         _cos_client = CosS3Client(config)
     return _cos_client
 
 
+def _parse_cloud_path(file_id: str) -> str:
+    """解析 cloud:// fileID，返回 COS Key。
+    fileID 格式: cloud://env-id.bucket-id/path/to/file.jpg
+    COS Key: path/to/file.jpg
+    """
+    if file_id.startswith('cloud://'):
+        # 去掉 cloud:// 前缀
+        rest = file_id[8:]  # len('cloud://') = 8
+        # rest = env-id.bucket-id/path/to/file.jpg
+        # 找到第一个 / 的位置
+        slash_idx = rest.find('/')
+        if slash_idx > 0:
+            return rest[slash_idx + 1:]
+        return rest
+    return file_id
+
+
 def _cos_upload(household_id: int, image_bytes: bytes, ext: str = 'jpg') -> tuple:
     """上传到微信云存储COS，返回 (storage_key, photo_id)。"""
-    from ..config import COS_BUCKET
     photo_id = uuid.uuid4().hex
     storage_key = f'photos/{household_id}/{photo_id}.{ext}'
     client = _get_cos_client()
@@ -100,7 +149,6 @@ def _cos_upload(household_id: int, image_bytes: bytes, ext: str = 'jpg') -> tupl
 
 def _cos_upload_preview(household_id: int, photo_id: str, preview_bytes: bytes) -> str:
     """上传预览图到COS，返回 preview_key。"""
-    from ..config import COS_BUCKET
     preview_key = f'photos/{household_id}/{photo_id}-preview.jpg'
     client = _get_cos_client()
     client.put_object(
@@ -113,13 +161,8 @@ def _cos_upload_preview(household_id: int, photo_id: str, preview_bytes: bytes) 
 
 
 def _cos_get_url(storage_key: str, expires: int = 3600) -> str:
-    """生成COS临时访问URL。"""
-    from qcloud_cos.cos_auth import CosAuth
-    from ..config import COS_BUCKET, COS_SECRET_ID, COS_SECRET_KEY, COS_REGION
-    # COS 生成预签名URL
-    from qcloud_cos import CosConfig, CosS3Client
-    config = CosConfig(SecretId=COS_SECRET_ID, SecretKey=COS_SECRET_KEY, Region=COS_REGION)
-    client = CosS3Client(config)
+    """生成COS临时访问URL（预签名URL）。"""
+    client = _get_cos_client()
     url = client.get_presigned_url(
         Method='GET',
         Bucket=COS_BUCKET,
@@ -131,7 +174,6 @@ def _cos_get_url(storage_key: str, expires: int = 3600) -> str:
 
 def _cos_get_bytes(storage_key: str) -> bytes:
     """从COS下载文件字节。"""
-    from ..config import COS_BUCKET
     client = _get_cos_client()
     response = client.get_object(Bucket=COS_BUCKET, Key=storage_key)
     return response['Body'].get_raw_stream().read()
@@ -139,7 +181,6 @@ def _cos_get_bytes(storage_key: str) -> bytes:
 
 def _cos_delete(storage_key: str, preview_key: str = None):
     """删除COS上的文件。"""
-    from ..config import COS_BUCKET
     client = _get_cos_client()
     client.delete_object(Bucket=COS_BUCKET, Key=storage_key)
     if preview_key:
@@ -183,6 +224,14 @@ def delete_photo(storage_key: str, preview_key: str = None):
     if STORAGE_MODE == 'wxcos':
         return _cos_delete(storage_key, preview_key)
     return _local_delete(storage_key, preview_key)
+
+
+def download_by_file_id(file_id: str) -> bytes:
+    """通过 cloud:// fileID 下载文件（客户端 wx.cloud.uploadFile 上传的文件）。"""
+    if STORAGE_MODE == 'wxcos':
+        key = _parse_cloud_path(file_id)
+        return _cos_get_bytes(key)
+    raise ValueError('当前模式不支持云存储 fileID')
 
 
 # 兼容旧接口名

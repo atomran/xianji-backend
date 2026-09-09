@@ -52,9 +52,10 @@ OSS_ENDPOINT = os.getenv('OSS_ENDPOINT', 'oss-cn-hangzhou.aliyuncs.com')
 OSS_BUCKET = os.getenv('OSS_BUCKET', 'xianji-photos')
 
 # ---- 微信云托管 COS ----
-COS_SECRET_ID = os.getenv('COS_SECRET_ID', '')
-COS_SECRET_KEY = os.getenv('COS_SECRET_KEY', '')
-COS_REGION = os.getenv('COS_REGION', '')
+# 使用临时密钥（通过内部 API 获取），不需要永久密钥
+COS_SECRET_ID = os.getenv('COS_SECRET_ID', '')  # 保留兼容，实际不使用
+COS_SECRET_KEY = os.getenv('COS_SECRET_KEY', '')  # 保留兼容，实际不使用
+COS_REGION = os.getenv('COS_REGION', 'ap-shanghai')
 COS_BUCKET = os.getenv('COS_BUCKET', '')  # 格式: bucketname-appid
 
 # ---- 服务 ----

@@ -13,8 +13,23 @@ from .routers import auth, items, photos, households, device
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时创建表（开发环境；生产用 Alembic 迁移）
+    # 启动时创建数据库和表
     if os.getenv('AUTO_CREATE_TABLES', '1') == '1':
+        from .config import DB_TYPE, DATABASE_URL, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+        if DB_TYPE == 'mysql':
+            # 先连到 MySQL 服务器（不指定数据库），创建 fridge 数据库
+            from sqlalchemy import create_engine, text
+            server_url = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/?charset=utf8mb4"
+            try:
+                server_engine = create_engine(server_url, pool_pre_ping=True)
+                with server_engine.connect() as conn:
+                    conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
+                    conn.commit()
+                server_engine.dispose()
+                print(f'数据库 {DB_NAME} 已确保创建', flush=True)
+            except Exception as e:
+                print(f'创建数据库警告: {e}', flush=True)
+        # 创建表
         Base.metadata.create_all(bind=engine)
     print(f'鲜记后端已启动 (timezone={TZ_NAME}, storage={STORAGE_MODE})', flush=True)
     yield

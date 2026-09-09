@@ -15,7 +15,7 @@ from ..models.database import User, Household, Item, Photo
 from ..models.schemas import RecognizeRequest
 from ..services.recognition import recognize, status as recog_status
 from ..services.media import prepare as prepare_media
-from ..oss.storage import upload_photo, upload_preview, get_file_url, get_file_bytes, get_signed_url
+from ..oss.storage import upload_photo, upload_preview, get_file_url, get_file_bytes, get_signed_url, download_by_file_id
 from ..config import MAX_PHOTO_SIZE, STORAGE_MODE, LOCAL_STORAGE_DIR
 
 router = APIRouter(prefix='/v1', tags=['photos'])
@@ -166,16 +166,6 @@ if STORAGE_MODE == 'local':
 
 async def _download_from_cloud(file_id: str) -> bytes:
     """从微信云存储下载文件（fileID 格式: cloud://env.bucket/path）。"""
-    # 云托管环境：通过 COS 读取
     if STORAGE_MODE == 'wxcos':
-        # fileID 形如 cloud://env-id.bucket-id/photos/xxx.jpg
-        # 需转换为 COS 路径
-        from ..oss.storage import get_file_bytes
-        # 提取路径部分
-        if file_id.startswith('cloud://'):
-            parts = file_id.split('/', 1)
-            if len(parts) == 2:
-                key = parts[1]
-                return get_file_bytes(key)
-        return get_file_bytes(file_id)
+        return download_by_file_id(file_id)
     raise HTTPException(400, '当前模式不支持云存储 fileID')
