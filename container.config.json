@@ -1,0 +1,19 @@
+{
+  "container_config": {
+    "cpu": 1,
+    "mem": "2Gi",
+    "min_num": 0,
+    "max_num": 5,
+    "policy_type": "cpu",
+    "policy_threshold": 60,
+    "concurrency": 10,
+    "retry_policy": {
+      "policy": "never"
+    }
+  },
+  "service": {
+    "name": "xianji-backend",
+    "protocol": "http",
+    "port": 8000
+  }
+}

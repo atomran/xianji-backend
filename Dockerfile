@@ -1,0 +1,20 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# 安装系统依赖（Pillow 需要）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libjpeg62-turbo libjpeg-dev zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# 微信云托管通过 PORT 环境变量指定端口
+ENV PORT=8000
+EXPOSE 8000
+
+# 使用 shell form 以便读取环境变量
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
