@@ -16,4 +16,4 @@ COPY . .
 EXPOSE 80
 
 # 使用 shell form 以便读取环境变量
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-80}
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-80}"]
