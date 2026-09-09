@@ -109,7 +109,7 @@ def _get_cos_client():
             SecretId=cred['TmpSecretId'],
             SecretKey=cred['TmpSecretKey'],
             Region=COS_REGION,
-            SecurityToken=cred.get('Token', ''),
+            Token=cred.get('Token', ''),
         )
         _cos_client = CosS3Client(config)
     return _cos_client
