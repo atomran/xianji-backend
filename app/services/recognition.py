@@ -95,6 +95,23 @@ def make_draft(extracted, captured_on):
             draft.update(shelf_value=amount, shelf_unit=unit)
             if unit == 'days':
                 draft['shelf_days'] = amount
+            # 自动计算到期日：有生产日期 + 保质期，且包装上没有明确标注到期日时
+            if draft['produced_on'] and not draft['expires_on']:
+                try:
+                    pd = date.fromisoformat(draft['produced_on'])
+                    if unit == 'days':
+                        draft['expires_on'] = (pd + timedelta(days=amount)).isoformat()
+                    elif unit == 'months':
+                        # 月按日历计算
+                        y, m = pd.year + (pd.month - 1 + amount) // 12, (pd.month - 1 + amount) % 12 + 1
+                        d = min(pd.day, calendar.monthrange(y, m)[1])
+                        draft['expires_on'] = date(y, m, d).isoformat()
+                    elif unit == 'years':
+                        y, m = pd.year + amount, pd.month
+                        d = min(pd.day, calendar.monthrange(y, m)[1])
+                        draft['expires_on'] = date(y, m, d).isoformat()
+                except (ValueError, TypeError):
+                    pass
         if extracted.get('produced_on') and not draft['produced_on']:
             warnings.append('生产日期与文字证据不一致，已留空。')
         if extracted.get('expires_on') and not draft['expires_on']:
