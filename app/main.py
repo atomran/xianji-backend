@@ -19,7 +19,8 @@ async def lifespan(app: FastAPI):
         if DB_TYPE == 'mysql':
             # 先连到 MySQL 服务器（不指定数据库），创建 fridge 数据库
             from sqlalchemy import create_engine, text
-            server_url = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/?charset=utf8mb4"
+            from urllib.parse import quote_plus
+            server_url = f"mysql+pymysql://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}:{DB_PORT}/?charset=utf8mb4"
             try:
                 server_engine = create_engine(server_url, pool_pre_ping=True)
                 with server_engine.connect() as conn:

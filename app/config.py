@@ -1,6 +1,7 @@
 """配置管理 — 环境变量驱动。"""
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -23,7 +24,7 @@ if DB_TYPE == 'sqlite':
     SQLITE_PATH = os.getenv('SQLITE_PATH', str(BASE_DIR / '.temp' / 'fridge.db'))
     DATABASE_URL = f"sqlite:///{SQLITE_PATH}"
 else:
-    DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
+    DATABASE_URL = f"mysql+pymysql://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
 
 # ---- 开发模式 ----
 DEV_MODE = os.getenv('DEV_MODE', 'false').lower() == 'true'
