@@ -12,7 +12,7 @@
     }
   },
   "service": {
-    "name": "xianji-backend",
+    "name": "fridge",
     "protocol": "http",
     "port": 8000
   }
