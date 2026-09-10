@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 安装系统依赖（Pillow 需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg62-turbo libjpeg-dev zlib1g-dev \
+    libjpeg62-turbo \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

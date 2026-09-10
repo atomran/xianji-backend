@@ -1,5 +1,6 @@
 """配置管理 — 环境变量驱动。"""
 import os
+import sys
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -34,6 +35,15 @@ JWT_SECRET = os.getenv('JWT_SECRET', 'change_me_in_production')
 JWT_ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_HOURS = 2
 REFRESH_TOKEN_EXPIRE_DAYS = 30
+
+# 生产环境安全校验
+if not DEV_MODE:
+    if JWT_SECRET == 'change_me_in_production':
+        print('[FATAL] 生产环境必须设置 JWT_SECRET 环境变量', file=sys.stderr)
+        sys.exit(1)
+    if DB_TYPE != 'sqlite' and DB_PASSWORD == 'fridge_secret':
+        print('[FATAL] 生产环境必须设置 DB_PASSWORD 环境变量', file=sys.stderr)
+        sys.exit(1)
 
 # ---- 微信小程序 ----
 WX_APPID = os.getenv('WX_APPID', '')

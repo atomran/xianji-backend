@@ -1,12 +1,10 @@
 """通义千问VL云端识别 — 替换 Ollama，复用证据校验和草稿生成逻辑。"""
-import base64
-import calendar
-import json
 import os
-import re
 import time
+import json
+import calendar
+import re
 from datetime import date, timedelta
-from pathlib import Path
 
 import dashscope
 from dashscope import MultiModalConversation
@@ -165,7 +163,10 @@ def call_vl_api(image_bytes_list, model=None):
             text = text[:-3]
         text = text.strip()
 
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        raise RuntimeError(f'VL模型返回非JSON格式: {text[:200]}')
 
 
 def recognize(image_bytes_list, captured_on, model=None):

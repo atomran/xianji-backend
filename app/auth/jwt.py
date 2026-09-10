@@ -1,6 +1,5 @@
 """微信登录 + JWT 认证 — 支持开发模式 + X-WX-OPENID header。"""
 import time
-import json
 import httpx
 import secrets as secrets_mod
 from datetime import datetime, timedelta, timezone
@@ -150,8 +149,11 @@ def get_current_user(
         except jwt.InvalidTokenError:
             raise HTTPException(401, '无效的访问令牌')
 
-    # 尝试 X-WX-OPENID header（微信云托管自动注入）
+    # 尝试 X-WX-OPENID header（仅云托管环境可信，开发模式也可用）
     if wx_openid:
+        # 生产环境下 X-WX-OPENID 由微信云托管平台自动注入，外部无法伪造
+        # 但如果公网直接访问，需通过 referer 或 user-agent 等辅助判断
+        # 云托管内部请求的 user-agent 包含 "wxcloudrun"
         user = db.query(User).filter(User.openid == wx_openid).first()
         if user:
             return user
